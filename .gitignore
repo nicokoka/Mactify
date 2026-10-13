@@ -1,0 +1,14 @@
+# Node
+runtime/node_modules/
+runtime/dist/
+
+# Swift
+engine/.build/
+engine/.swiftpm/
+*.xcodeproj
+
+# macOS
+.DS_Store
+
+# Scratch
+*.log

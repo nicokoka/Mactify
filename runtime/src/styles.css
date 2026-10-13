@@ -1,0 +1,747 @@
+/* Base chrome for the Spotify Customizer panel and plugin UI. All classes are `sc-`
+   prefixed to avoid colliding with Spotify's own styles. Values use their own tokens
+   rather than Spotify's so the panel renders consistently under any theme. */
+
+:root {
+  --sc-bg: #0b0b0d;
+  --sc-surface: #17171b;
+  --sc-surface-2: #212128;
+  --sc-surface-3: #2e2e37;
+  --sc-line: rgba(255, 255, 255, 0.08);
+  --sc-text: #f4f4f6;
+  --sc-text-dim: #a0a0ab;
+  --sc-accent: #1db954;
+  --sc-danger: #ff8a8a;
+  --sc-radius: 14px;
+  --sc-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  --sc-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --sc-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --sc-glass: rgba(24, 24, 30, 0.72);
+  --sc-z: 2147483000;
+}
+
+/* Author `display` rules beat the UA's [hidden] rule, so restate it for all our UI.
+   (Without this the screensaver overlay showed — black, cursor hidden — on boot.) */
+[class*="sc-"][hidden] {
+  display: none !important;
+}
+
+/* Keep our own font even when a theme forces font-family on body descendants. */
+.sc-sheet,
+.sc-sheet *,
+.sc-chip,
+.sc-flash,
+.sc-popover,
+.sc-popover *,
+.sc-toast,
+.sc-toast *,
+.sc-saver,
+.sc-saver * {
+  font-family: var(--sc-font) !important;
+  text-shadow: none !important;
+}
+
+/* ── Launcher ─────────────────────────────────────────────────────────────── */
+
+.sc-launcher {
+  position: fixed;
+  right: 18px;
+  bottom: 92px;
+  z-index: var(--sc-z);
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: var(--sc-accent);
+  color: #000;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  transition: transform 150ms var(--sc-ease), filter 150ms;
+}
+.sc-launcher:hover {
+  transform: scale(1.08) rotate(8deg);
+  filter: brightness(1.08);
+}
+.sc-launcher:active {
+  transform: scale(0.96);
+}
+
+/* ── Overlay + sheet ──────────────────────────────────────────────────────── */
+
+.sc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--sc-z) + 1);
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+}
+.sc-overlay.sc-hidden {
+  display: none;
+}
+
+.sc-sheet {
+  width: min(640px, 92vw);
+  max-height: 84vh;
+  overflow-y: auto;
+  background: var(--sc-surface);
+  color: var(--sc-text);
+  border-radius: var(--sc-radius);
+  box-shadow: var(--sc-shadow);
+  animation: sc-sheet-in 220ms var(--sc-ease);
+}
+@keyframes sc-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+
+.sc-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  gap: 14px;
+  padding: 22px 24px 14px;
+  background: var(--sc-surface);
+  border-bottom: 1px solid var(--sc-line);
+}
+.sc-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.sc-header h2 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
+.sc-header p {
+  margin: 0;
+  color: var(--sc-text-dim);
+  font-size: 13px;
+}
+.sc-close {
+  margin-left: auto;
+  border: none;
+  background: var(--sc-surface-2);
+  color: var(--sc-text);
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.sc-close:hover {
+  background: var(--sc-surface-3);
+}
+
+/* Tabs */
+.sc-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--sc-bg);
+  border-radius: 10px;
+}
+.sc-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sc-text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.sc-tab:hover {
+  color: var(--sc-text);
+}
+.sc-tab--on {
+  background: var(--sc-surface-2);
+  color: var(--sc-text);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+.sc-tab-count {
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 9px;
+  background: var(--sc-accent);
+  color: #000;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.sc-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  border: 1px solid var(--sc-line);
+  border-radius: 8px;
+  background: var(--sc-bg);
+  color: var(--sc-text);
+  font-size: 13px;
+  outline: none;
+}
+.sc-search:focus {
+  border-color: var(--sc-accent);
+}
+
+.sc-body {
+  padding: 10px 0 18px;
+}
+.sc-empty,
+.sc-note {
+  margin: 12px 24px;
+  color: var(--sc-text-dim);
+  font-size: 12px;
+}
+
+/* ── Option rows ──────────────────────────────────────────────────────────── */
+
+.sc-section {
+  padding: 2px 24px 10px;
+}
+.sc-section h3 {
+  margin: 14px 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sc-text-dim);
+}
+
+.sc-row-wrap {
+  border-radius: 10px;
+  transition: background 120ms;
+}
+.sc-row-wrap:hover {
+  background: var(--sc-surface-2);
+}
+.sc-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.sc-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sc-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+.sc-desc {
+  font-size: 12px;
+  color: var(--sc-text-dim);
+  line-height: 1.4;
+}
+.sc-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: #5a1f1f;
+  color: #ff9d9d;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+/* iOS-style switch built on a native checkbox (keeps keyboard + a11y for free). */
+.sc-switch {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  margin: 1px 0 0;
+  border-radius: 10px;
+  background: var(--sc-surface-3);
+  cursor: pointer;
+  transition: background 160ms var(--sc-ease);
+}
+.sc-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  transition: transform 160ms var(--sc-ease);
+}
+.sc-switch:checked {
+  background: var(--sc-accent);
+}
+.sc-switch:checked::after {
+  transform: translateX(14px);
+}
+.sc-switch:focus-visible {
+  outline: 2px solid var(--sc-accent);
+  outline-offset: 2px;
+}
+
+/* Inline settings */
+.sc-settings {
+  display: grid;
+  gap: 10px;
+  margin: 0 12px 0 58px;
+  padding: 2px 0 14px;
+}
+.sc-setting {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.sc-setting-label {
+  min-width: 110px;
+  font-size: 12px;
+  color: var(--sc-text-dim);
+}
+.sc-input {
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border: 1px solid var(--sc-line);
+  border-radius: 7px;
+  background: var(--sc-bg);
+  color: var(--sc-text);
+  font-size: 13px;
+  outline: none;
+}
+.sc-input:focus {
+  border-color: var(--sc-accent);
+}
+.sc-input--hex {
+  width: 96px;
+  font-family: "SF Mono", Menlo, monospace !important;
+  text-transform: lowercase;
+}
+.sc-input--num {
+  width: 84px;
+}
+.sc-input--area {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  font-family: "SF Mono", Menlo, monospace !important;
+  font-size: 12px;
+}
+.sc-invalid {
+  border-color: var(--sc-danger) !important;
+}
+.sc-color {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sc-color input[type="color"] {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--sc-line);
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+.sc-color input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 3px;
+}
+.sc-color input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 5px;
+}
+
+/* ── Theme gallery ────────────────────────────────────────────────────────── */
+
+.sc-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+  padding: 6px 24px;
+}
+.sc-theme {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--sc-line);
+  border-radius: 12px;
+  background: var(--sc-bg);
+  color: var(--sc-text);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 160ms var(--sc-ease), border-color 160ms, box-shadow 160ms;
+}
+.sc-theme:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.sc-theme:focus-visible {
+  outline: 2px solid var(--sc-accent);
+  outline-offset: 2px;
+}
+.sc-theme--on {
+  border-color: var(--sc-accent);
+  box-shadow: 0 0 0 1px var(--sc-accent), 0 8px 22px rgba(0, 0, 0, 0.4);
+}
+.sc-theme-preview {
+  position: relative;
+  display: block;
+  height: 64px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(90deg, var(--p-surface) 0 30%, var(--p-bg) 30%);
+}
+.sc-theme-sample {
+  position: absolute;
+  left: 38%;
+  top: 10px;
+  color: var(--p-text);
+  font-size: 22px;
+  font-weight: 700;
+}
+.sc-theme-preview i {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--p-accent);
+  box-shadow: 0 0 12px var(--p-accent);
+}
+.sc-theme-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── Plugin UI ────────────────────────────────────────────────────────────── */
+
+.sc-chip {
+  position: fixed;
+  right: 70px;
+  bottom: 100px;
+  z-index: var(--sc-z);
+  padding: 6px 12px;
+  border: 1px solid var(--sc-line);
+  border-radius: 999px;
+  background: var(--sc-glass);
+  backdrop-filter: blur(14px);
+  color: var(--sc-text);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.sc-chip:hover {
+  border-color: var(--sc-danger);
+}
+
+.sc-flash {
+  position: fixed;
+  left: 50%;
+  bottom: 110px;
+  z-index: var(--sc-z);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--sc-glass);
+  backdrop-filter: blur(14px);
+  color: var(--sc-text);
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  transition: opacity 180ms, transform 180ms var(--sc-ease);
+}
+.sc-flash--show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.sc-popover {
+  position: fixed;
+  right: 18px;
+  bottom: 150px;
+  z-index: var(--sc-z);
+  width: 340px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 14px;
+  border: 1px solid var(--sc-line);
+  border-radius: var(--sc-radius);
+  background: var(--sc-surface);
+  color: var(--sc-text);
+  box-shadow: var(--sc-shadow);
+}
+.sc-popover-title {
+  margin: 0 0 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sc-text-dim);
+}
+.sc-history {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sc-history-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sc-history-btn:hover {
+  background: var(--sc-surface-2);
+}
+.sc-history-art {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--sc-surface-2);
+}
+.sc-history-meta {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  font-size: 13px;
+}
+.sc-history-meta > * {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.sc-history-meta span {
+  color: var(--sc-text-dim);
+  font-size: 12px;
+}
+.sc-history-time {
+  color: var(--sc-text-dim);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.sc-history-empty {
+  color: var(--sc-text-dim);
+  font-size: 13px;
+}
+
+.sc-toast {
+  position: fixed;
+  left: 18px;
+  bottom: 100px;
+  z-index: var(--sc-z);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 340px;
+  padding: 10px 16px 10px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  background: var(--sc-glass);
+  backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), var(--sc-shadow);
+  color: var(--sc-text);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-24px);
+  transition: opacity 260ms, transform 360ms var(--sc-ease);
+}
+.sc-toast--show {
+  opacity: 1;
+  transform: none;
+}
+.sc-toast-art {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.sc-toast-meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 13px;
+}
+.sc-toast-meta > * {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.sc-toast-kicker {
+  color: var(--sc-accent);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.sc-toast-meta span:last-child {
+  color: var(--sc-text-dim);
+}
+
+.sc-saver {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--sc-z) + 2);
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 28px;
+  background: #000;
+  color: #fff;
+  cursor: none;
+  animation: sc-fade-in 1.2s ease;
+}
+.sc-saver::before {
+  content: "";
+  position: absolute;
+  inset: -10%;
+  background: var(--sc-saver-art) center / cover;
+  filter: blur(70px) brightness(0.55) saturate(1.4);
+}
+.sc-saver-art {
+  position: relative;
+  width: min(52vh, 70vw);
+  aspect-ratio: 1;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.6);
+  animation: sc-breathe 9s ease-in-out infinite alternate;
+}
+.sc-saver-meta {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+.sc-saver-meta strong {
+  font-size: clamp(1.4rem, 1rem + 1.6vw, 2.6rem);
+  letter-spacing: -0.02em;
+}
+.sc-saver-meta span {
+  opacity: 0.75;
+  font-size: 1.1rem;
+}
+@keyframes sc-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes sc-breathe {
+  to {
+    transform: scale(1.03);
+  }
+}
+
+.sc-burst {
+  position: fixed;
+  z-index: var(--sc-z);
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.sc-burst-p {
+  position: absolute;
+  left: -0.5em;
+  top: -0.5em;
+  color: var(--essential-bright-accent, var(--sc-accent));
+  font-size: 15px;
+  animation: sc-burst 820ms var(--sc-ease) forwards;
+}
+.sc-burst-p:nth-child(3n) {
+  color: #ff5fa2;
+}
+.sc-burst-p:nth-child(4n) {
+  color: #ffd84d;
+}
+@keyframes sc-burst {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(0.4) rotate(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(1.1) rotate(var(--rot));
+  }
+}
+
+.sc-eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.sc-eq i {
+  width: 3px;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--essential-bright-accent, var(--sc-accent));
+  transform-origin: bottom;
+  animation: sc-eq 900ms ease-in-out infinite alternate;
+}
+.sc-eq i:nth-child(2) {
+  animation-duration: 640ms;
+}
+.sc-eq i:nth-child(3) {
+  animation-duration: 1100ms;
+}
+.sc-eq i:nth-child(4) {
+  animation-duration: 760ms;
+}
+.sc-eq--paused i {
+  animation-play-state: paused;
+  opacity: 0.5;
+}
+@keyframes sc-eq {
+  0% {
+    transform: scaleY(0.2);
+  }
+  100% {
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-sheet,
+  .sc-saver,
+  .sc-saver-art,
+  .sc-eq i {
+    animation: none !important;
+  }
+  .sc-eq i {
+    transform: scaleY(0.6);
+  }
+  .sc-toast,
+  .sc-flash,
+  .sc-theme,
+  .sc-launcher {
+    transition: none;
+  }
+}
