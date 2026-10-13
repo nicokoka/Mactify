@@ -1,7 +1,7 @@
 # Spotify Customizer
 
 A macOS Spotify customizer with a scalable library of CSS + JS options and an
-in-app settings panel. Inspired by Spicetify; built from scratch.
+in-app settings panel. Built from scratch.
 
 ## How it works
 
