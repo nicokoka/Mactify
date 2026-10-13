@@ -4,10 +4,11 @@ import CustomizerCore
 @main
 struct CustomizerMenuBarApp: App {
     @StateObject private var model = MenuModel()
+    @StateObject private var overlay = NowPlayingOverlay()
 
     var body: some Scene {
         MenuBarExtra("Spotify Customizer", systemImage: "wand.and.stars") {
-            MenuContent(model: model)
+            MenuContent(model: model, overlay: overlay)
         }
         .menuBarExtraStyle(.window)
     }
@@ -81,6 +82,7 @@ final class MenuModel: ObservableObject {
 
 struct MenuContent: View {
     @ObservedObject var model: MenuModel
+    @ObservedObject var overlay: NowPlayingOverlay
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -99,6 +101,13 @@ struct MenuContent: View {
                 get: { model.watcherOn },
                 set: { _ in model.toggleWatcher() }
             ))
+
+            Divider()
+
+            Toggle("Now-playing popup over all apps", isOn: $overlay.enabled)
+            Toggle("Only when Spotify isn't in front", isOn: $overlay.onlyWhenAway)
+                .disabled(!overlay.enabled)
+                .padding(.leading, 18)
 
             Divider()
 

@@ -23,14 +23,14 @@ export interface OptionContext {
   getSetting<T>(key: string, fallback: T): T;
 }
 
-export type SettingType = "color" | "text" | "textarea" | "number" | "select";
+export type SettingType = "color" | "text" | "textarea" | "number" | "select" | "toggle" | "image";
 
 /** A user-tunable value an option exposes. Rendered inline in the panel while enabled. */
 export interface OptionSetting {
   key: string;
   label: string;
   type: SettingType;
-  default: string | number;
+  default: string | number | boolean;
   min?: number;
   max?: number;
   step?: number;

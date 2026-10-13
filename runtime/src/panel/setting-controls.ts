@@ -2,6 +2,7 @@
 // option is re-applied, so changes show live. Values are assigned via properties,
 // never innerHTML.
 
+import { assetKeyFor, deleteAsset, fileToDataUrl, getAsset, putAsset } from "../asset-store.js";
 import { getSetting, setSetting } from "../config.js";
 import type { CustomizerEngine } from "../engine.js";
 import { isHexColor } from "../theme-vars.js";
@@ -61,8 +62,77 @@ function colorControl(
   return wrap;
 }
 
-function fieldFor(setting: OptionSetting, current: unknown, commit: (v: unknown) => void): HTMLElement {
+/** Image/GIF picker. The file goes to IndexedDB; config only stores a revision stamp. */
+function imageControl(assetKey: string, commit: (value: unknown) => void): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "sc-image";
+  const preview = document.createElement("span");
+  preview.className = "sc-image-preview";
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.hidden = true;
+  const pick = document.createElement("button");
+  pick.type = "button";
+  pick.className = "sc-btn";
+  pick.textContent = "Choose image or GIF…";
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "sc-btn sc-btn--ghost";
+  clear.textContent = "Remove";
+  const status = document.createElement("span");
+  status.className = "sc-image-status";
+
+  const show = (url: string | null): void => {
+    preview.style.backgroundImage = url ? `url("${url}")` : "";
+    preview.classList.toggle("sc-image-preview--empty", !url);
+    clear.hidden = !url;
+  };
+  void getAsset(assetKey).then(show).catch(() => show(null));
+
+  pick.onclick = () => input.click();
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    status.textContent = "Loading…";
+    try {
+      const url = await fileToDataUrl(file);
+      await putAsset(assetKey, url);
+      show(url);
+      status.textContent = "";
+      commit(Date.now());
+    } catch (err) {
+      status.textContent = err instanceof Error ? err.message : "Couldn't load that image.";
+    }
+  };
+  clear.onclick = async () => {
+    await deleteAsset(assetKey).catch(() => undefined);
+    show(null);
+    commit(Date.now());
+  };
+
+  wrap.append(preview, pick, clear, input, status);
+  return wrap;
+}
+
+function fieldFor(
+  setting: OptionSetting,
+  current: unknown,
+  commit: (v: unknown) => void,
+  assetKey: string,
+): HTMLElement {
   switch (setting.type) {
+    case "image":
+      return imageControl(assetKey, commit);
+    case "toggle": {
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.className = "sc-switch sc-switch--small";
+      input.checked = current === true;
+      input.onchange = () => commit(input.checked);
+      return input;
+    }
     case "color":
       return colorControl(String(current), commit);
     case "select": {
@@ -120,10 +190,15 @@ export function renderSettings(engine: CustomizerEngine, option: CustomizerOptio
     caption.className = "sc-setting-label";
     caption.textContent = setting.label;
     const current = getSetting<unknown>(option.id, setting.key, setting.default);
-    const field = fieldFor(setting, current, (value) => {
-      setSetting(option.id, setting.key, value);
-      engine.reapply(option);
-    });
+    const field = fieldFor(
+      setting,
+      current,
+      (value) => {
+        setSetting(option.id, setting.key, value);
+        engine.reapply(option);
+      },
+      assetKeyFor(option.id, setting.key),
+    );
     label.append(caption, field);
     box.appendChild(label);
   }

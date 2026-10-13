@@ -3,6 +3,7 @@
 import { injectStyle } from "../../dom.js";
 import { getNowPlaying, largeArtUrl, onPlayStateChange, onTrackChange } from "../../now-playing.js";
 import { whenPresent } from "../../spotify-api.js";
+import { FRAME_PARTS, LAYOUT } from "../../theme-vars.js";
 import type { CustomizerOption } from "../../types.js";
 import { el, LIKE_BUTTON_SELECTOR, prefersReducedMotion } from "./ui.js";
 
@@ -38,6 +39,26 @@ const trackToast: CustomizerOption = {
   },
 };
 
+/** Lift a muddy average color into a usable tint: keep the hue, fix S and L. */
+function vivid(r: number, g: number, b: number): string {
+  const max = Math.max(r, g, b) / 255;
+  const min = Math.min(r, g, b) / 255;
+  const l = (max + min) / 2;
+  const d = max - min;
+  let h = 0;
+  if (d) {
+    const [rn, gn, bn] = [r / 255, g / 255, b / 255];
+    if (max === rn) h = ((gn - bn) / d) % 6;
+    else if (max === gn) h = (bn - rn) / d + 2;
+    else h = (rn - gn) / d + 4;
+    h *= 60;
+  }
+  const s = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
+  // Near-grey art stays grey; everything else gets enough color to read as a tint.
+  const sat = s < 0.08 ? s * 100 : Math.max(55, s * 100);
+  return `hsl(${Math.round((h + 360) % 360)} ${Math.round(sat)}% ${Math.round(Math.min(0.55, Math.max(0.38, l)) * 100)}%)`;
+}
+
 /** Average color of an image, or null if it can't be read (e.g. CORS-tainted). */
 function averageColor(url: string): Promise<string | null> {
   return new Promise((resolve) => {
@@ -59,7 +80,7 @@ function averageColor(url: string): Promise<string | null> {
           b += data[i + 2] ?? 0;
         }
         const n = data.length / 4;
-        resolve(`rgb(${Math.round(r / n)}, ${Math.round(gr / n)}, ${Math.round(b / n)})`);
+        resolve(vivid(r / n, gr / n, b / n));
       } catch {
         resolve(null);
       }
@@ -69,19 +90,47 @@ function averageColor(url: string): Promise<string | null> {
   });
 }
 
+const AMBIENT_SCOPES = [
+  "html .encore-dark-theme",
+  "html .encore-dark-theme .encore-base-set",
+  "html .encore-dark-theme .encore-app-frame-set",
+].join(", ");
+
 const ambientColor: CustomizerOption = {
   id: "plugin-ambient-color",
   name: "Ambient album color",
-  description: "Tints the whole background with the current album art's color, fading between songs.",
+  description: "Tints all of Spotify with the current album art's color, fading smoothly between songs.",
   category: "plugin",
   kind: "js",
-  init() {
+  settings: [
+    {
+      key: "strength",
+      label: "Strength",
+      type: "select",
+      default: "28",
+      choices: [
+        { value: "16", label: "Subtle" },
+        { value: "28", label: "Noticeable" },
+        { value: "42", label: "Bold" },
+      ],
+    },
+  ],
+  init(ctx) {
     const VAR = "--sc-ambient";
+    const pct = Number(ctx.getSetting<string>("strength", "28")) || 28;
+    const tint = (base: string, p: number) => `color-mix(in srgb, var(${VAR}) ${p}%, ${base})`;
+    // Registered so it animates; every tinted var derives from it and follows along.
     const removeStyle = injectStyle(
-      `@property ${VAR} { syntax: "<color>"; inherits: true; initial-value: transparent; }
-       html { transition: ${VAR} 1.2s ease; }
-       body main { background-image: linear-gradient(180deg, color-mix(in srgb, var(${VAR}) 55%, transparent) 0%, transparent 420px) !important; }
-       body [data-testid="now-playing-bar"] { background-image: linear-gradient(90deg, color-mix(in srgb, var(${VAR}) 30%, transparent), transparent 60%) !important; }`,
+      `@property ${VAR} { syntax: "<color>"; inherits: true; initial-value: #121212; }
+       html { transition: ${VAR} 1.4s ease; }
+       ${AMBIENT_SCOPES} {
+         --background-base: ${tint("#101012", pct)} !important;
+         --background-elevated-base: ${tint("#1a1a1d", pct)} !important;
+         --background-highlight: ${tint("#26262a", pct + 6)} !important;
+         --background-elevated-highlight: ${tint("#2c2c31", pct + 6)} !important;
+       }
+       html ${FRAME_PARTS} { background-color: ${tint("#000", Math.round(pct * 0.6))} !important; }
+       html ${LAYOUT.mainPanel} > div { background-image: linear-gradient(180deg, color-mix(in srgb, var(${VAR}) 45%, transparent), transparent 360px); }`,
       "ambient-color",
     );
     let alive = true;
@@ -89,13 +138,19 @@ const ambientColor: CustomizerOption = {
       const color = await averageColor(url);
       if (alive && color) document.documentElement.style.setProperty(VAR, color);
     };
-    void update(getNowPlaying().artUrl);
+    // At boot the player bar may not have rendered its artwork yet; wait for it.
+    const stopWaiting = whenPresent(() => {
+      const url = getNowPlaying().artUrl;
+      if (url) void update(url);
+      return !!url;
+    });
     const dispose = onTrackChange((np) => {
       // The <img> src can lag the title by a frame; read it once more shortly after.
       window.setTimeout(() => void update(getNowPlaying().artUrl || np.artUrl), 300);
     });
     return () => {
       alive = false;
+      stopWaiting();
       dispose();
       removeStyle();
       document.documentElement.style.removeProperty(VAR);

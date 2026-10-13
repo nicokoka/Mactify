@@ -367,6 +367,62 @@
   border-radius: 5px;
 }
 
+.sc-switch--small {
+  width: 30px;
+  height: 18px;
+  margin: 0;
+}
+.sc-switch--small::after {
+  width: 14px;
+  height: 14px;
+}
+.sc-switch--small:checked::after {
+  transform: translateX(12px);
+}
+
+.sc-btn {
+  padding: 7px 12px;
+  border: 1px solid var(--sc-line);
+  border-radius: 7px;
+  background: var(--sc-surface-3);
+  color: var(--sc-text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+.sc-btn:hover {
+  border-color: var(--sc-accent);
+}
+.sc-btn--ghost {
+  background: transparent;
+  color: var(--sc-text-dim);
+}
+.sc-image {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sc-image-preview {
+  width: 64px;
+  height: 40px;
+  border-radius: 6px;
+  border: 1px solid var(--sc-line);
+  background: var(--sc-bg) center / cover no-repeat;
+}
+.sc-image-preview--empty {
+  background-image: repeating-linear-gradient(45deg, var(--sc-surface-2) 0 6px, var(--sc-bg) 6px 12px) !important;
+}
+.sc-image-status {
+  flex-basis: 100%;
+  color: var(--sc-text-dim);
+  font-size: 11px;
+}
+.sc-image-status:empty {
+  display: none;
+}
+
 /* ── Theme gallery ────────────────────────────────────────────────────────── */
 
 .sc-gallery {

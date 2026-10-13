@@ -67,10 +67,17 @@ Gives a menu-bar item with Apply / Restore / Auto-re-apply toggle / status.
   (Midnight, Dracula, Nord, Gruvbox, Catppuccin Mocha, Solarized, Rosé Pine, Tokyo
   Night, Forest, Crimson, Ocean, Sakura, Paper, Monochrome, Sunset) and 5 signature
   themes (Liquid Glass, Cyberpunk, Synthwave, Terminal CRT, Retro 98).
-- **10 plugins**: Sleep timer, Media hotkeys (⌥→ ⌥← ⌥S ⌥R ⌥L), Scroll for volume,
-  Zen mode (⌘⇧Z), Session history (⌘⇧H), Now-playing toast, Ambient album color,
-  Big-art screensaver, Heart burst, Dancing equalizer.
+- **12 plugins**: Clean home page (hide ads, podcasts/audiobooks, chips, named
+  shelves), Custom background (any image or GIF from disk), Sleep timer, Media
+  hotkeys (⌥→ ⌥← ⌥S ⌥R ⌥L), Scroll for volume, Zen mode, Session history (⌘⇧H),
+  Now-playing toast, Ambient album color, Big-art screensaver, Heart burst,
+  Dancing equalizer.
+- **System-wide now-playing popup** (menu-bar app): floats over every app and
+  Space on track change, driven by Spotify's distributed notification.
 - **Tweaks**: accent color, thicker progress bar, layout/chrome options, custom CSS.
+
+**Safe mode:** if an option ever makes Spotify unusable, press **⌘⌥⇧X** — it turns
+every option off and reloads.
 
 ## Adding options
 
@@ -104,6 +111,11 @@ defineTheme({
   extraCss: "…", // optional textures/effects
 })
 ```
+
+Signature themes paint a generated SVG scene (`catalog/themes/art.ts`) on `<html>`
+— Spotify's CSP blocks remote images, but `data:` URIs load. Only decorate the
+outer panels in `LAYOUT`/`PANELS`; `clip-path` or `backdrop-filter` on the inner
+scrolling `<main>` stops Chromium painting it.
 
 Spotify defines its colors on `.encore-dark-theme …-set` classes, not `:root`, so
 always go through `theme-vars.ts` (`paletteCss`, `accentCss`, `fontCss`) rather than

@@ -22,6 +22,32 @@ const ACCENT_SET_SCOPES = [
   ".encore-light-theme .encore-bright-accent-set",
 ];
 
+/**
+ * Stable layout anchors (Spotify 1.3.x). Class names are hashed, so we use ids and
+ * testids. Decorate only these OUTER panels: putting clip-path/backdrop-filter on
+ * the inner scrolling <main> (thousands of px tall) makes Chromium stop painting it.
+ */
+export const LAYOUT = {
+  /** The app frame that holds every panel; Spotify paints it solid black. */
+  frame: `[data-testid="root"] > div:has(> #main-view)`,
+  topBar: `#global-nav-bar`,
+  leftPanel: `#Desktop_LeftSidebar_Id`,
+  mainPanel: `#main-view`,
+  rightPanel: `#Desktop_PanelContainer_Id`,
+  playerBar: `[data-testid="now-playing-bar"]`,
+} as const;
+
+/** The three content panels plus the player bar — safe to skin. */
+export const PANELS = [LAYOUT.leftPanel, LAYOUT.mainPanel, LAYOUT.rightPanel, LAYOUT.playerBar].join(", ");
+
+/** Everything Spotify paints solid black around the panels. */
+export const FRAME_PARTS = [
+  LAYOUT.frame,
+  LAYOUT.topBar,
+  LAYOUT.leftPanel,
+  `${LAYOUT.frame} > div:has(> ${LAYOUT.playerBar})`,
+].join(", ");
+
 export interface Palette {
   /** Main view background. */
   bg: string;
@@ -34,6 +60,8 @@ export interface Palette {
   accent: string;
   /** Text drawn on top of the accent (play button glyph). Defaults to black. */
   onAccent?: string;
+  /** Outer frame + top bar. Defaults to a slightly darker shade of `bg`. */
+  frame?: string;
   /** "light" switches native controls/scrollbars to light rendering. */
   scheme?: "dark" | "light";
 }
@@ -72,7 +100,13 @@ export function paletteCss(p: Palette): string {
   --decorative-base: ${p.text} !important;
   --decorative-subdued: ${p.highlight} !important;
 }
-body { background-color: ${p.bg} !important; color: ${p.text}; }
+html { background-color: ${p.bg} !important; }
+body { background-color: transparent !important; color: ${p.text}; }
+${FRAME_PARTS} {
+  background-color: ${p.frame ?? mix(p.bg, "#000", p.scheme === "light" ? 92 : 70)} !important;
+}
+::selection { background: ${mix(p.accent, "transparent", 40)}; }
+::-webkit-scrollbar-thumb { background-color: ${mix(p.subdued, "transparent", 45)} !important; }
 ${accentCss(p.accent, onAccent, "")}`;
 }
 

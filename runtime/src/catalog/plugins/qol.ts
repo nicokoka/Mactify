@@ -2,6 +2,7 @@
 // node it created, so toggling off leaves no trace.
 
 import { injectStyle, onHotkey } from "../../dom.js";
+import { LAYOUT } from "../../theme-vars.js";
 import { clickControl, getNowPlaying, onTrackChange, type NowPlaying } from "../../now-playing.js";
 import type { CustomizerOption } from "../../types.js";
 import { el, flash, LIKE_BUTTON_SELECTOR } from "./ui.js";
@@ -108,28 +109,29 @@ const scrollVolume: CustomizerOption = {
 
 const zenMode: CustomizerOption = {
   id: "plugin-zen-mode",
-  name: "Zen mode (⌘⇧Z)",
-  description: "Toggle hiding the sidebars and top bar so only the main view and player remain.",
+  name: "Zen mode",
+  description: "Hides both sidebars so the main view fills the window. ⌘⇧Z peeks at them without turning it off.",
   category: "plugin",
   kind: "js",
   init() {
-    const ZEN_CLASS = "sc-zen";
+    const PEEK_CLASS = "sc-zen-peek";
+    // The app frame is a named CSS grid; collapsing its side columns (instead of
+    // just hiding the panels) lets the main view take the freed space.
     const removeStyle = injectStyle(
-      `html.${ZEN_CLASS} body nav,
-       html.${ZEN_CLASS} body aside,
-       html.${ZEN_CLASS} [data-testid="topbar"],
-       html.${ZEN_CLASS} #Desktop_PanelContainer_Id { display: none !important; }`,
+      `html:not(.${PEEK_CLASS}) ${LAYOUT.frame} { grid-template-columns: 0 1fr 0 !important; column-gap: 0 !important; }
+       html:not(.${PEEK_CLASS}) ${LAYOUT.leftPanel},
+       html:not(.${PEEK_CLASS}) ${LAYOUT.frame} > div:has(${LAYOUT.rightPanel}) { display: none !important; }`,
       "zen-mode",
     );
     const disposeKey = onHotkey({ key: "z", meta: true, shift: true }, (e) => {
       e.preventDefault();
-      const on = document.documentElement.classList.toggle(ZEN_CLASS);
-      flash(on ? "Zen mode on — ⌘⇧Z to exit" : "Zen mode off");
+      const peeking = document.documentElement.classList.toggle(PEEK_CLASS);
+      flash(peeking ? "Sidebars shown — ⌘⇧Z to hide again" : "Zen mode");
     });
     return () => {
       disposeKey();
       removeStyle();
-      document.documentElement.classList.remove(ZEN_CLASS);
+      document.documentElement.classList.remove(PEEK_CLASS);
     };
   },
 };
