@@ -37,4 +37,14 @@ public enum Paths {
     public static var installedAssetsDir: URL {
         supportDir.appendingPathComponent("runtime/customizer", isDirectory: true)
     }
+
+    /// The installed `customizer` CLI and background agent binaries.
+    public static var installedBinDir: URL {
+        supportDir.appendingPathComponent("bin", isDirectory: true)
+    }
+
+    /// Release version of the installed bundle (`dev` for local builds).
+    public static var installedVersionFile: URL {
+        supportDir.appendingPathComponent("VERSION")
+    }
 }

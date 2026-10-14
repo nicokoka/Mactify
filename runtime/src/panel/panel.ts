@@ -2,11 +2,13 @@
 // Spotify's router or nav (those change often across updates) — it mounts its own
 // floating button + overlay on <body>, which is about as update-proof as it gets.
 
+import { fetchUpdateStatus, type UpdateStatus } from "../agent.js";
 import type { CustomizerEngine } from "../engine.js";
 import { onHotkey } from "../dom.js";
 import { CATEGORY_LABELS, type CustomizerOption, type OptionCategory } from "../types.js";
 import { renderSettings } from "./setting-controls.js";
 import { renderThemeGallery } from "./theme-gallery.js";
+import { createUpdateBanner } from "./update-banner.js";
 
 const OVERLAY_ID = "sc-overlay";
 
@@ -69,6 +71,8 @@ function optionRow(engine: CustomizerEngine, option: CustomizerOption, rerender:
 export function mountPanel(engine: CustomizerEngine): () => void {
   let activeTab: TabId = "themes";
   let query = "";
+  let updateBanner: HTMLElement | null = null;
+  let bannerVersion: string | null = null;
 
   // Floating launcher button.
   const launcher = document.createElement("button");
@@ -87,7 +91,27 @@ export function mountPanel(engine: CustomizerEngine): () => void {
   const open = () => {
     render();
     overlay.classList.remove("sc-hidden");
+    void refreshUpdate();
   };
+
+  /** Ask the agent whether a newer release exists; show the banner + launcher dot. */
+  async function refreshUpdate(): Promise<void> {
+    const status: UpdateStatus | null = await fetchUpdateStatus();
+    const available = status?.available === true && status.latest !== null;
+    launcher.classList.toggle("sc-launcher--update", available);
+    if (!available) {
+      // Drop a stale banner, but never one that's mid-update.
+      if (!updateBanner?.querySelector("button:disabled")) {
+        updateBanner = null;
+        bannerVersion = null;
+      }
+      return;
+    }
+    if (bannerVersion === status.latest) return;
+    updateBanner = createUpdateBanner(status);
+    bannerVersion = status.latest;
+    if (isOpen()) render();
+  }
   const close = () => overlay.classList.add("sc-hidden");
   const toggle = () => (isOpen() ? close() : open());
 
@@ -144,7 +168,9 @@ export function mountPanel(engine: CustomizerEngine): () => void {
       renderBody();
     };
 
-    header.append(titleRow, tabs, search);
+    header.append(titleRow);
+    if (updateBanner) header.appendChild(updateBanner);
+    header.append(tabs, search);
     return header;
   }
 
@@ -209,6 +235,7 @@ export function mountPanel(engine: CustomizerEngine): () => void {
   window.addEventListener("keydown", onEscape, true);
 
   document.body.append(launcher, overlay);
+  void refreshUpdate();
   const disposeHotkey = onHotkey({ key: "k", meta: true, shift: true }, toggle);
 
   return () => {

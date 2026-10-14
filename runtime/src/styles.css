@@ -67,6 +67,26 @@
 .sc-launcher:active {
   transform: scale(0.96);
 }
+/* Update waiting: a small dot that gently pulses on the launcher. */
+.sc-launcher--update::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--sc-text);
+  box-shadow: 0 0 0 2px var(--sc-accent), 0 0 0 4px rgba(0, 0, 0, 0.35);
+  animation: sc-update-pulse 2.4s var(--sc-ease) infinite;
+}
+@keyframes sc-update-pulse {
+  0%, 70%, 100% { transform: scale(1); }
+  35% { transform: scale(1.25); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sc-launcher--update::after { animation: none; }
+}
 
 /* ── Overlay + sheet ──────────────────────────────────────────────────────── */
 
@@ -137,6 +157,91 @@
 }
 .sc-close:hover {
   background: var(--sc-surface-3);
+}
+
+/* Update banner */
+.sc-update {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 14px;
+  padding: 12px 12px 12px 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--sc-accent) 13%, var(--sc-surface-2));
+  border: 1px solid color-mix(in srgb, var(--sc-accent) 38%, transparent);
+}
+.sc-update--failed {
+  background: color-mix(in srgb, var(--sc-danger) 10%, var(--sc-surface-2));
+  border-color: color-mix(in srgb, var(--sc-danger) 40%, transparent);
+}
+.sc-update-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.sc-update-text strong {
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+.sc-update-text span {
+  color: var(--sc-text-dim);
+  font-size: 12px;
+}
+.sc-update--failed .sc-update-text span {
+  color: var(--sc-danger);
+}
+.sc-update-actions {
+  display: flex;
+  gap: 6px;
+}
+.sc-update-ghost,
+.sc-update-go {
+  border: none;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 120ms, transform 120ms, filter 120ms;
+}
+.sc-update-ghost {
+  background: transparent;
+  color: var(--sc-text);
+}
+.sc-update-ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.sc-update-go {
+  background: var(--sc-accent);
+  color: #000;
+}
+.sc-update-go:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: scale(1.03);
+}
+.sc-update-go:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.sc-update-go:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+.sc-update-ghost:focus-visible,
+.sc-update-go:focus-visible {
+  outline: 2px solid var(--sc-text);
+  outline-offset: 2px;
+}
+.sc-update-notes {
+  grid-column: 1 / -1;
+  max-height: 160px;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--sc-text-dim);
+  font: 12px/1.5 var(--sc-font);
+  white-space: pre-wrap;
 }
 
 /* Tabs */

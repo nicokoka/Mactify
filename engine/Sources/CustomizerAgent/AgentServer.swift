@@ -1,29 +1,40 @@
 import Foundation
 import Network
 
-/// Settings the in-Spotify "Now-playing toast" option pushes to the system popup.
-struct OverlaySettings: Decodable, Equatable {
-    var enabled: Bool
-    var showOverFullScreen: Bool
-    var seconds: Double
+/// A request the patched Spotify UI sent the agent.
+struct AgentRequest {
+    let method: String
+    let path: String
+    let body: Data
 }
 
-/// Loopback-only HTTP endpoint the patched Spotify UI posts toast settings to,
-/// so the system-wide popup is controlled from the Spotify panel.
-///
-/// `POST /overlay` with a JSON `OverlaySettings` body. Only requests whose
-/// `Origin` is Spotify's UI are accepted; everything else gets a 403.
-final class OverlaySettingsServer {
+struct AgentResponse {
+    let status: String
+    var body: Data = Data()
+
+    static let noContent = AgentResponse(status: "204 No Content")
+    static let notFound = AgentResponse(status: "404 Not Found")
+    static let badRequest = AgentResponse(status: "400 Bad Request")
+
+    static func json<T: Encodable>(_ value: T, status: String = "200 OK") -> AgentResponse {
+        AgentResponse(status: status, body: (try? JSONEncoder().encode(value)) ?? Data())
+    }
+}
+
+/// Loopback-only HTTP endpoint the patched Spotify UI talks to: popup settings
+/// and in-Spotify updates. Only requests whose `Origin` is Spotify's UI are
+/// accepted; everything else gets a 403.
+final class AgentServer {
     static let port: NWEndpoint.Port = 47621
     private static let allowedOrigin = "https://xpui.app.spotify.com"
     private static let maxRequestBytes = 8 * 1024
 
-    private let onSettings: @MainActor (OverlaySettings) -> Void
+    private let route: @MainActor (AgentRequest) async -> AgentResponse
     private var listener: NWListener?
-    private let queue = DispatchQueue(label: "SpotifyCustomizer.overlay-settings")
+    private let queue = DispatchQueue(label: "SpotifyCustomizer.agent-server")
 
-    init(onSettings: @escaping @MainActor (OverlaySettings) -> Void) {
-        self.onSettings = onSettings
+    init(route: @escaping @MainActor (AgentRequest) async -> AgentResponse) {
+        self.route = route
     }
 
     func start() {
@@ -34,13 +45,13 @@ final class OverlaySettingsServer {
             listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
             listener.stateUpdateHandler = { state in
                 if case .failed(let error) = state {
-                    NSLog("[SpotifyCustomizer] settings server failed: \(error.localizedDescription)")
+                    NSLog("[SpotifyCustomizer] agent server failed: \(error.localizedDescription)")
                 }
             }
             listener.start(queue: queue)
             self.listener = listener
         } catch {
-            NSLog("[SpotifyCustomizer] settings server could not start: \(error.localizedDescription)")
+            NSLog("[SpotifyCustomizer] agent server could not start: \(error.localizedDescription)")
         }
     }
 
@@ -66,36 +77,33 @@ final class OverlaySettingsServer {
 
     private func respond(to request: HTTPRequest, on connection: NWConnection) {
         guard request.headers["origin"] == Self.allowedOrigin else {
-            return send(status: "403 Forbidden", on: connection)
+            return send(AgentResponse(status: "403 Forbidden"), on: connection)
         }
-        switch (request.method, request.path) {
-        case ("OPTIONS", _):
-            send(status: "204 No Content", on: connection)
-        case ("POST", "/overlay"):
-            guard let settings = try? JSONDecoder().decode(OverlaySettings.self, from: request.body) else {
-                return send(status: "400 Bad Request", on: connection)
-            }
-            let onSettings = self.onSettings
-            Task { @MainActor in onSettings(settings) }
-            send(status: "204 No Content", on: connection)
-        default:
-            send(status: "404 Not Found", on: connection)
+        if request.method == "OPTIONS" {
+            return send(.noContent, on: connection)
+        }
+        let agentRequest = AgentRequest(method: request.method, path: request.path, body: request.body)
+        let route = self.route
+        Task { @MainActor in
+            let response = await route(agentRequest)
+            self.send(response, on: connection)
         }
     }
 
-    private func send(status: String, on connection: NWConnection) {
-        let head = [
-            "HTTP/1.1 \(status)",
+    private func send(_ response: AgentResponse, on connection: NWConnection) {
+        var head = [
+            "HTTP/1.1 \(response.status)",
             "Access-Control-Allow-Origin: \(Self.allowedOrigin)",
-            "Access-Control-Allow-Methods: POST, OPTIONS",
+            "Access-Control-Allow-Methods: GET, POST, OPTIONS",
             "Access-Control-Allow-Headers: Content-Type",
             // Chromium's Private Network Access preflight for page → loopback requests.
             "Access-Control-Allow-Private-Network: true",
-            "Content-Length: 0",
+            "Content-Length: \(response.body.count)",
             "Connection: close",
-            "", "",
-        ].joined(separator: "\r\n")
-        connection.send(content: Data(head.utf8), completion: .contentProcessed { _ in connection.cancel() })
+        ]
+        if !response.body.isEmpty { head.append("Content-Type: application/json") }
+        let data = Data((head.joined(separator: "\r\n") + "\r\n\r\n").utf8) + response.body
+        connection.send(content: data, completion: .contentProcessed { _ in connection.cancel() })
     }
 }
 

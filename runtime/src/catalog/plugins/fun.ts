@@ -1,14 +1,14 @@
 // Fun / eye-candy plugins. Purely cosmetic; each cleans up fully on disable.
 
 import { injectStyle } from "../../dom.js";
+import { AGENT_URL } from "../../agent.js";
 import { getNowPlaying, largeArtUrl, onPlayStateChange, onTrackChange } from "../../now-playing.js";
 import { whenPresent } from "../../spotify-api.js";
 import { FRAME_PARTS, LAYOUT } from "../../theme-vars.js";
 import type { CustomizerOption } from "../../types.js";
 import { el, LIKE_BUTTON_SELECTOR, prefersReducedMotion } from "./ui.js";
 
-// The background agent's loopback endpoint that drives the system-wide popup.
-const OVERLAY_ENDPOINT = "http://127.0.0.1:47621/overlay";
+const OVERLAY_ENDPOINT = `${AGENT_URL}/overlay`;
 
 interface OverlaySettings {
   enabled: boolean;

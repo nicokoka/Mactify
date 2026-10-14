@@ -14,8 +14,11 @@ curl -fsSL https://raw.githubusercontent.com/nicokoka/Mactify/main/install.sh | 
 ```
 
 Spotify restarts with the customizer. Press **⌘⇧K** in Spotify (or click the ✦
-button, bottom-right) to pick themes and plugins. Run the same line again any
-time to update.
+button, bottom-right) to pick themes and plugins.
+
+**Updates:** when a new version is out, the ✦ button gets a dot and the panel
+shows an **Update** button. One click installs it and restarts Spotify — no
+Terminal needed.
 
 No password is needed. If macOS says Terminal was blocked from modifying apps,
 turn Terminal on under **System Settings → Privacy & Security → App Management**
@@ -42,7 +45,8 @@ Spotify's desktop UI lives in `/Applications/Spotify.app/Contents/Resources/Apps
    never stacks.
 4. **Auto re-applies** after Spotify updates, via a small invisible background
    agent (a launchd LaunchAgent — no app, Dock or menu-bar icon). The same agent
-   shows the now-playing popup over other apps.
+   shows the now-playing popup over other apps and installs customizer updates:
+   it checks GitHub's latest release every 6 hours and the ✦ panel offers it.
 
 Everything installed lives in `~/Library/Application Support/SpotifyCustomizer/`
 plus `~/Library/LaunchAgents/com.spotifycustomizer.agent.plist`.
@@ -71,11 +75,14 @@ Needs Xcode (or the Swift toolchain) and Node.
 ### Releasing
 
 ```bash
-./scripts/package-release.sh   # universal build → dist/spotify-customizer-macos.tar.gz
+./scripts/package-release.sh 0.2.0   # universal build → dist/spotify-customizer-macos.tar.gz
 ```
 
-Attach the tarball to a new GitHub release. `install.sh` always downloads the
-latest release's `spotify-customizer-macos.tar.gz`.
+Create a GitHub release tagged `v0.2.0` (matching the version you packaged),
+write the notes (shown in the panel under "What's new"), and attach the tarball.
+New installs pick it up right away; existing users see the Update button within
+6 hours, or as soon as the agent restarts. Dev installs (`dev.sh`) are stamped
+`dev` and never offered updates.
 
 ### CLI
 

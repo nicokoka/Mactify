@@ -1,6 +1,13 @@
 import AppKit
 import SwiftUI
 
+/// Settings the in-Spotify "Now-playing toast" option pushes to the popup.
+struct OverlaySettings: Decodable, Equatable {
+    var enabled: Bool
+    var showOverFullScreen: Bool
+    var seconds: Double
+}
+
 /// A system-wide "now playing" toast that floats above every app and Space.
 ///
 /// Spotify posts `com.spotify.client.PlaybackStateChanged` on the distributed
@@ -8,7 +15,7 @@ import SwiftUI
 /// permission is needed. Artwork comes from Spotify's public oEmbed endpoint.
 ///
 /// Controlled from Spotify's own panel: the "Now-playing toast" option posts its
-/// settings to `OverlaySettingsServer`, and they're kept in UserDefaults so the
+/// settings to the agent's `/overlay` route, and they're kept in UserDefaults so the
 /// popup keeps working when the agent restarts before Spotify does.
 @MainActor
 final class NowPlayingOverlay {
@@ -35,7 +42,6 @@ final class NowPlayingOverlay {
         didSet { UserDefaults.standard.set(showSeconds, forKey: Self.secondsKey) }
     }
 
-    private var server: OverlaySettingsServer?
     private var observer: PlaybackObserver?
     private var lastTrackID = ""
     private var panel: NSPanel?
@@ -55,13 +61,11 @@ final class NowPlayingOverlay {
         showOverFullScreen = defaults.object(forKey: Self.overFullScreenKey) as? Bool ?? true
         showSeconds = defaults.object(forKey: Self.secondsKey) as? Double ?? 4
         if enabled { start() }
-        server = OverlaySettingsServer { [weak self] settings in self?.apply(settings) }
-        server?.start()
     }
 
     /// Settings pushed from Spotify's panel. Spotify resends them on every track
     /// change, so only real changes are written through.
-    private func apply(_ settings: OverlaySettings) {
+    func apply(_ settings: OverlaySettings) {
         if enabled != settings.enabled { enabled = settings.enabled }
         if showOverFullScreen != settings.showOverFullScreen { showOverFullScreen = settings.showOverFullScreen }
         let seconds = min(max(settings.seconds, 1), 15)
