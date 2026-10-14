@@ -7,15 +7,55 @@ import { FRAME_PARTS, LAYOUT } from "../../theme-vars.js";
 import type { CustomizerOption } from "../../types.js";
 import { el, LIKE_BUTTON_SELECTOR, prefersReducedMotion } from "./ui.js";
 
+// The menu-bar app's loopback endpoint that drives the system-wide popup.
+const OVERLAY_ENDPOINT = "http://127.0.0.1:47621/overlay";
+
+interface OverlaySettings {
+  enabled: boolean;
+  showOverFullScreen: boolean;
+  seconds: number;
+}
+
+let overlaySyncTimer = 0;
+
+/**
+ * Push toast settings to the menu-bar app (it may not be running; that's fine).
+ * Debounced: a settings change runs cleanup ("off") then init ("on") in one tick,
+ * and two racing requests could land out of order — only the last state is sent.
+ */
+function syncSystemOverlay(settings: OverlaySettings): void {
+  window.clearTimeout(overlaySyncTimer);
+  overlaySyncTimer = window.setTimeout(() => {
+    // text/plain keeps this a CORS "simple" request (no preflight round-trip).
+    fetch(OVERLAY_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify(settings),
+    }).catch(() => {});
+  }, 150);
+}
+
 const trackToast: CustomizerOption = {
   id: "plugin-track-toast",
   name: "Now-playing toast",
-  description: "A glassy card with the artwork, title and artist slides in whenever the song changes.",
+  description:
+    "A glassy card with the artwork, title and artist slides in whenever the song changes — in Spotify, and over other apps when the menu-bar app is running.",
   category: "plugin",
   kind: "js",
-  settings: [{ key: "seconds", label: "Show for (seconds)", type: "number", default: 4, min: 1, max: 15 }],
+  settings: [
+    { key: "seconds", label: "Show for (seconds)", type: "number", default: 4, min: 1, max: 15 },
+    { key: "overOtherApps", label: "Pop up over other apps", type: "toggle", default: true },
+    { key: "overFullScreen", label: "…including full-screen apps", type: "toggle", default: true },
+  ],
   init(ctx) {
-    const ms = Math.max(1, Number(ctx.getSetting<number>("seconds", 4)) || 4) * 1000;
+    const seconds = Math.max(1, Number(ctx.getSetting<number>("seconds", 4)) || 4);
+    const ms = seconds * 1000;
+    const overlay: OverlaySettings = {
+      enabled: ctx.getSetting<boolean>("overOtherApps", true),
+      showOverFullScreen: ctx.getSetting<boolean>("overFullScreen", true),
+      seconds,
+    };
+    syncSystemOverlay(overlay);
     const toast = el("div", "sc-toast");
     toast.setAttribute("role", "status");
     document.body.appendChild(toast);
@@ -27,6 +67,8 @@ const trackToast: CustomizerOption = {
       const meta = el("div", "sc-toast-meta");
       meta.append(el("span", "sc-toast-kicker", "Now playing"), el("strong", "", np.title), el("span", "", np.artist));
       toast.replaceChildren(art, meta);
+      // Resend each track so a menu-bar app started after Spotify picks the settings up.
+      syncSystemOverlay(overlay);
       toast.classList.add("sc-toast--show");
       window.clearTimeout(timer);
       timer = window.setTimeout(() => toast.classList.remove("sc-toast--show"), ms);
@@ -35,6 +77,7 @@ const trackToast: CustomizerOption = {
       dispose();
       window.clearTimeout(timer);
       toast.remove();
+      syncSystemOverlay({ ...overlay, enabled: false });
     };
   },
 };

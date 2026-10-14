@@ -53,13 +53,16 @@ swift run customizer restore --restart
 swift run customizer watch   --assets ../runtime/dist/customizer   # auto re-apply loop
 ```
 
-### Menu-bar app
+### Menu-bar helper
+
+`dev.sh` installs **Spotify Customizer Helper.app** into `~/Applications` and
+registers it as a login item. It stays invisible until Spotify opens, then shows a
+menu-bar item (Apply / Restore / Auto-re-apply / status) and powers the
+now-playing popup over other apps. To (re)install it on its own:
 
 ```bash
-cd engine && swift run CustomizerMenuBar
+./scripts/build-helper.sh --install
 ```
-
-Gives a menu-bar item with Apply / Restore / Auto-re-apply toggle / status.
 
 ## What's included
 
@@ -72,8 +75,9 @@ Gives a menu-bar item with Apply / Restore / Auto-re-apply toggle / status.
   hotkeys (⌥→ ⌥← ⌥S ⌥R ⌥L), Scroll for volume, Zen mode, Session history (⌘⇧H),
   Now-playing toast, Ambient album color, Big-art screensaver, Heart burst,
   Dancing equalizer.
-- **System-wide now-playing popup** (menu-bar app): floats over every app and
-  Space on track change, driven by Spotify's distributed notification.
+- **System-wide now-playing popup**: part of the Now-playing toast option. The
+  helper floats it over every app and Space on track change (optionally over
+  full-screen apps too); its settings live in the toast's panel settings.
 - **Tweaks**: accent color, thicker progress bar, layout/chrome options, custom CSS.
 
 **Safe mode:** if an option ever makes Spotify unusable, press **⌘⌥⇧X** — it turns

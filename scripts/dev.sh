@@ -17,6 +17,11 @@ cp "$ASSETS_SRC"/* "$ASSETS_DST"/
 echo "▸ Building engine…"
 ( cd "$REPO/engine" && swift build )
 
+echo "▸ Installing the popup helper (starts hidden at login, shows with Spotify)…"
+"$REPO/scripts/build-helper.sh" --install
+pkill -f "Spotify Customizer Helper.app" || true
+open "$HOME/Applications/Spotify Customizer Helper.app"
+
 echo "▸ Applying + restarting Spotify…"
 ( cd "$REPO/engine" && swift run customizer apply --assets "$ASSETS_DST" --restart )
 

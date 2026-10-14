@@ -6,53 +6,76 @@ import SwiftUI
 /// Spotify posts `com.spotify.client.PlaybackStateChanged` on the distributed
 /// notification center whenever playback changes, so no polling or AppleScript
 /// permission is needed. Artwork comes from Spotify's public oEmbed endpoint.
+///
+/// Controlled from Spotify's own panel: the "Now-playing toast" option posts its
+/// settings to `OverlaySettingsServer`, and they're kept in UserDefaults so the
+/// popup keeps working when this app restarts before Spotify does.
 @MainActor
 final class NowPlayingOverlay: ObservableObject {
     static let defaultsKey = "nowPlayingOverlayEnabled"
-    static let onlyWhenAwayKey = "nowPlayingOverlayOnlyWhenAway"
+    static let overFullScreenKey = "nowPlayingOverlayOverFullScreen"
+    static let secondsKey = "nowPlayingOverlaySeconds"
 
-    @Published var enabled: Bool {
+    @Published private(set) var enabled: Bool {
         didSet {
             UserDefaults.standard.set(enabled, forKey: Self.defaultsKey)
             enabled ? start() : stop()
         }
     }
 
-    /// Skip the overlay while Spotify is the frontmost app (its in-app toast covers that).
-    @Published var onlyWhenAway: Bool {
-        didSet { UserDefaults.standard.set(onlyWhenAway, forKey: Self.onlyWhenAwayKey) }
+    /// Also show over full-screen apps (videos, games, full-screen Docs…).
+    @Published private(set) var showOverFullScreen: Bool {
+        didSet {
+            UserDefaults.standard.set(showOverFullScreen, forKey: Self.overFullScreenKey)
+            panel?.collectionBehavior = Self.spaceBehavior(overFullScreen: showOverFullScreen)
+        }
     }
 
-    private var observer: NSObjectProtocol?
+    private var showSeconds: Double {
+        didSet { UserDefaults.standard.set(showSeconds, forKey: Self.secondsKey) }
+    }
+
+    private var server: OverlaySettingsServer?
+    private var observer: PlaybackObserver?
     private var lastTrackID = ""
     private var panel: NSPanel?
     private var hideTask: Task<Void, Never>?
+    private var pending: PendingTrack?
+    private var artworkCache: [String: NSImage] = [:]
     private let model = ToastModel()
 
-    private static let showSeconds: UInt64 = 4
+    /// How long to hold the toast back waiting for cover art before showing a placeholder.
+    private static let artworkWaitNanoseconds: UInt64 = 1_500_000_000
+    private static let artworkCacheLimit = 50
     private static let spotifyBundleID = "com.spotify.client"
 
     init() {
         let defaults = UserDefaults.standard
         enabled = defaults.bool(forKey: Self.defaultsKey)
-        onlyWhenAway = defaults.object(forKey: Self.onlyWhenAwayKey) as? Bool ?? true
+        showOverFullScreen = defaults.object(forKey: Self.overFullScreenKey) as? Bool ?? true
+        showSeconds = defaults.object(forKey: Self.secondsKey) as? Double ?? 4
         if enabled { start() }
+        server = OverlaySettingsServer { [weak self] settings in self?.apply(settings) }
+        server?.start()
+    }
+
+    /// Settings pushed from Spotify's panel. Spotify resends them on every track
+    /// change, so only real changes are written through.
+    private func apply(_ settings: OverlaySettings) {
+        if enabled != settings.enabled { enabled = settings.enabled }
+        if showOverFullScreen != settings.showOverFullScreen { showOverFullScreen = settings.showOverFullScreen }
+        let seconds = min(max(settings.seconds, 1), 15)
+        if showSeconds != seconds { showSeconds = seconds }
     }
 
     private func start() {
         guard observer == nil else { return }
-        observer = DistributedNotificationCenter.default().addObserver(
-            forName: Notification.Name("com.spotify.client.PlaybackStateChanged"),
-            object: nil,
-            queue: .main
-        ) { [weak self] note in
-            let info = note.userInfo ?? [:]
+        observer = PlaybackObserver { [weak self] info in
             MainActor.assumeIsolated { self?.handle(info) }
         }
     }
 
     private func stop() {
-        if let observer { DistributedNotificationCenter.default().removeObserver(observer) }
         observer = nil
         hideTask?.cancel()
         panel?.orderOut(nil)
@@ -65,32 +88,68 @@ final class NowPlayingOverlay: ObservableObject {
         else { return }
         lastTrackID = trackID
 
-        if onlyWhenAway,
-           NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Self.spotifyBundleID {
+        // Inside Spotify its own in-app toast takes over.
+        if NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Self.spotifyBundleID {
+            return
+        }
+        if !showOverFullScreen, Self.frontAppIsFullScreen() { return }
+
+        let track = PendingTrack(
+            id: trackID,
+            title: info["Name"] as? String ?? "Unknown",
+            artist: info["Artist"] as? String ?? ""
+        )
+        if let cached = artworkCache[trackID] {
+            reveal(track, artwork: cached)
             return
         }
 
-        model.title = info["Name"] as? String ?? "Unknown"
-        model.artist = info["Artist"] as? String ?? ""
-        model.artwork = nil
-        show()
-        Task { await loadArtwork(trackID: trackID) }
+        // Hold the toast until the art arrives so it never flashes the gray
+        // placeholder; if the network is slow, show it anyway after the wait.
+        pending = track
+        Task {
+            let artwork = await Self.fetchArtwork(trackID: trackID)
+            if let artwork { cacheArtwork(artwork, for: trackID) }
+            guard trackID == lastTrackID else { return }
+            if pending?.id == trackID {
+                reveal(track, artwork: artwork)
+            } else if model.artwork == nil {
+                model.artwork = artwork
+            }
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: Self.artworkWaitNanoseconds)
+            if pending?.id == trackID { reveal(track, artwork: nil) }
+        }
     }
 
-    /// Fetch cover art via oEmbed (`thumbnail_url`). Failure just leaves the placeholder.
-    private func loadArtwork(trackID: String) async {
+    private func reveal(_ track: PendingTrack, artwork: NSImage?) {
+        pending = nil
+        model.title = track.title
+        model.artist = track.artist
+        model.artwork = artwork
+        show()
+    }
+
+    private func cacheArtwork(_ image: NSImage, for trackID: String) {
+        if artworkCache.count >= Self.artworkCacheLimit { artworkCache.removeAll() }
+        artworkCache[trackID] = image
+    }
+
+    /// Fetch cover art via oEmbed (`thumbnail_url`). Returns nil on failure (placeholder shows).
+    private static func fetchArtwork(trackID: String) async -> NSImage? {
         var components = URLComponents(string: "https://open.spotify.com/oembed")
         components?.queryItems = [URLQueryItem(name: "url", value: trackID)]
-        guard let url = components?.url else { return }
+        guard let url = components?.url else { return nil }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-            guard let thumb = (json?["thumbnail_url"] as? String).flatMap(URL.init(string:)) else { return }
+            guard let thumb = (json?["thumbnail_url"] as? String).flatMap(URL.init(string:)) else { return nil }
             let (imageData, _) = try await URLSession.shared.data(from: thumb)
-            guard trackID == lastTrackID, let image = NSImage(data: imageData) else { return }
-            model.artwork = image
+            return NSImage(data: imageData)
         } catch {
             NSLog("[SpotifyCustomizer] overlay artwork failed: \(error.localizedDescription)")
+            return nil
         }
     }
 
@@ -106,7 +165,7 @@ final class NowPlayingOverlay: ObservableObject {
         }
         hideTask?.cancel()
         hideTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: Self.showSeconds * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: UInt64(self?.showSeconds ?? 4) * 1_000_000_000)
             guard !Task.isCancelled else { return }
             self?.fadeOut()
         }
@@ -128,7 +187,7 @@ final class NowPlayingOverlay: ObservableObject {
             defer: true
         )
         panel.level = .statusBar
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        panel.collectionBehavior = Self.spaceBehavior(overFullScreen: showOverFullScreen)
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
@@ -136,6 +195,32 @@ final class NowPlayingOverlay: ObservableObject {
         panel.hidesOnDeactivate = false
         panel.contentView = NSHostingView(rootView: ToastView(model: model))
         return panel
+    }
+
+    /// `.fullScreenAuxiliary` is what lets a window into another app's full-screen Space.
+    private static func spaceBehavior(overFullScreen: Bool) -> NSWindow.CollectionBehavior {
+        var behavior: NSWindow.CollectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+        if overFullScreen { behavior.insert(.fullScreenAuxiliary) }
+        return behavior
+    }
+
+    /// True when the frontmost app has a normal-layer window covering a whole screen.
+    /// Window bounds and owner PIDs don't need Screen Recording permission.
+    private static func frontAppIsFullScreen() -> Bool {
+        guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+              let windows = CGWindowListCopyWindowInfo(
+                  [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
+              ) as? [[String: Any]]
+        else { return false }
+        let screenSizes = NSScreen.screens.map(\.frame.size)
+        return windows.contains { window in
+            guard (window[kCGWindowOwnerPID as String] as? pid_t) == pid,
+                  (window[kCGWindowLayer as String] as? Int) == 0,
+                  let boundsDict = window[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary)
+            else { return false }
+            return screenSizes.contains(bounds.size)
+        }
     }
 
     /// Top-right of the screen with the mouse, just under the menu bar.
@@ -146,6 +231,36 @@ final class NowPlayingOverlay: ObservableObject {
         let size = panel.frame.size
         panel.setFrameOrigin(NSPoint(x: visible.maxX - size.width - 16, y: visible.maxY - size.height - 12))
     }
+}
+
+/// Selector-based observer so delivery can be `.deliverImmediately`. The block API
+/// uses `.coalesce`, and NSApplication suspends distributed notifications while the
+/// app is inactive — which a menu-bar app almost always is — so the toast would
+/// only fire once the menu was opened.
+private final class PlaybackObserver: NSObject {
+    private let onChange: ([AnyHashable: Any]) -> Void
+
+    init(onChange: @escaping ([AnyHashable: Any]) -> Void) {
+        self.onChange = onChange
+        super.init()
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(received(_:)),
+            name: Notification.Name("com.spotify.client.PlaybackStateChanged"),
+            object: nil,
+            suspensionBehavior: .deliverImmediately
+        )
+    }
+
+    deinit { DistributedNotificationCenter.default().removeObserver(self) }
+
+    @objc private func received(_ note: Notification) { onChange(note.userInfo ?? [:]) }
+}
+
+private struct PendingTrack {
+    let id: String
+    let title: String
+    let artist: String
 }
 
 @MainActor

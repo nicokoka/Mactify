@@ -5,9 +5,15 @@ import CustomizerCore
 struct CustomizerMenuBarApp: App {
     @StateObject private var model = MenuModel()
     @StateObject private var overlay = NowPlayingOverlay()
+    @StateObject private var spotify = SpotifyPresence()
+
+    init() {
+        SpotifyPresence.registerLoginItem()
+    }
 
     var body: some Scene {
-        MenuBarExtra("Spotify Customizer", systemImage: "wand.and.stars") {
+        // Hidden while Spotify is closed; the popup itself only fires while it plays.
+        MenuBarExtra("Spotify Customizer", systemImage: "wand.and.stars", isInserted: $spotify.isRunning) {
             MenuContent(model: model, overlay: overlay)
         }
         .menuBarExtraStyle(.window)
@@ -104,10 +110,14 @@ struct MenuContent: View {
 
             Divider()
 
-            Toggle("Now-playing popup over all apps", isOn: $overlay.enabled)
-            Toggle("Only when Spotify isn't in front", isOn: $overlay.onlyWhenAway)
-                .disabled(!overlay.enabled)
-                .padding(.leading, 18)
+            Label(
+                overlay.enabled ? "Now-playing popup on" : "Now-playing popup off",
+                systemImage: overlay.enabled ? "bell.fill" : "bell.slash"
+            )
+            .font(.subheadline)
+            Text("Set it in Spotify: ✦ panel → Now-playing toast")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             Divider()
 
