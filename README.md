@@ -3,6 +3,32 @@
 A macOS Spotify customizer with a scalable library of CSS + JS options and an
 in-app settings panel. Built from scratch.
 
+## Install
+
+1. Install [Spotify](https://www.spotify.com/download/) and open it once.
+2. Open **Terminal** (press ⌘Space, type "Terminal", press Return).
+3. Paste this line and press Return:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nicokoka/Mactify/main/install.sh | bash
+```
+
+Spotify restarts with the customizer. Press **⌘⇧K** in Spotify (or click the ✦
+button, bottom-right) to pick themes and plugins. Run the same line again any
+time to update.
+
+No password is needed. If macOS says Terminal was blocked from modifying apps,
+turn Terminal on under **System Settings → Privacy & Security → App Management**
+and paste the line again.
+
+### Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nicokoka/Mactify/main/uninstall.sh | bash
+```
+
+Puts Spotify back to normal and removes everything the installer added.
+
 ## How it works
 
 Spotify's desktop UI lives in `/Applications/Spotify.app/Contents/Resources/Apps/xpui.spa`
@@ -14,7 +40,12 @@ Spotify's desktop UI lives in `/Applications/Spotify.app/Contents/Resources/Apps
    and copies the built runtime into the archive.
 3. **Always patches from the pristine backup**, so re-applying is idempotent and
    never stacks.
-4. **Auto re-applies** after Spotify updates via a launchd watcher.
+4. **Auto re-applies** after Spotify updates, via a small invisible background
+   agent (a launchd LaunchAgent — no app, Dock or menu-bar icon). The same agent
+   shows the now-playing popup over other apps.
+
+Everything installed lives in `~/Library/Application Support/SpotifyCustomizer/`
+plus `~/Library/LaunchAgents/com.spotifycustomizer.agent.plist`.
 
 Options are **sandboxed** — one that breaks (e.g. an update renamed a selector)
 never takes down the rest, and the panel flags it as `failed`.
@@ -22,46 +53,40 @@ never takes down the rest, and the panel flags it as `failed`.
 Config lives in Spotify's own `localStorage`, which is stored outside `xpui.spa`,
 so your settings survive re-patching and Spotify updates.
 
-## Layout
+## Development
 
 ```
-engine/    Swift package — CustomizerCore + `customizer` CLI + menu-bar app
+engine/    Swift package — CustomizerCore, `customizer` CLI, background agent
 runtime/   TypeScript — injected loader, catalog engine, options, settings panel
-scripts/   dev.sh dev loop
+scripts/   dev.sh dev loop, package-release.sh release bundle
+install.sh / uninstall.sh   what users paste into Terminal
 ```
 
-## Quick start
+Needs Xcode (or the Swift toolchain) and Node.
 
 ```bash
-# 1. Build the runtime
-cd runtime && npm install && npm run build && cd ..
-
-# 2. Patch Spotify (captures a pristine backup on first run) and relaunch
-./scripts/dev.sh
+./scripts/dev.sh   # build for this Mac and install it exactly like install.sh does
 ```
 
-Then open Spotify and press **⌘⇧K** (or click the ✦ button, bottom-right) for the
-settings panel.
+### Releasing
+
+```bash
+./scripts/package-release.sh   # universal build → dist/spotify-customizer-macos.tar.gz
+```
+
+Attach the tarball to a new GitHub release. `install.sh` always downloads the
+latest release's `spotify-customizer-macos.tar.gz`.
 
 ### CLI
+
+Installed at `~/Library/Application Support/SpotifyCustomizer/bin/customizer`, or
+from the repo:
 
 ```bash
 cd engine
 swift run customizer status
 swift run customizer apply   --assets ../runtime/dist/customizer --restart
 swift run customizer restore --restart
-swift run customizer watch   --assets ../runtime/dist/customizer   # auto re-apply loop
-```
-
-### Menu-bar helper
-
-`dev.sh` installs **Spotify Customizer Helper.app** into `~/Applications` and
-registers it as a login item. It stays invisible until Spotify opens, then shows a
-menu-bar item (Apply / Restore / Auto-re-apply / status) and powers the
-now-playing popup over other apps. To (re)install it on its own:
-
-```bash
-./scripts/build-helper.sh --install
 ```
 
 ## What's included
@@ -76,8 +101,8 @@ now-playing popup over other apps. To (re)install it on its own:
   Now-playing toast, Ambient album color, Big-art screensaver, Heart burst,
   Dancing equalizer.
 - **System-wide now-playing popup**: part of the Now-playing toast option. The
-  helper floats it over every app and Space on track change (optionally over
-  full-screen apps too); its settings live in the toast's panel settings.
+  background agent floats it over every app and Space on track change (optionally
+  over full-screen apps too); its settings live in the toast's panel settings.
 - **Tweaks**: accent color, thicker progress bar, layout/chrome options, custom CSS.
 
 **Safe mode:** if an option ever makes Spotify unusable, press **⌘⌥⇧X** — it turns

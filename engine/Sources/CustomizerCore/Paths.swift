@@ -33,16 +33,8 @@ public enum Paths {
             .appendingPathComponent("xpui.spa")
     }
 
-    /// Where the menu-bar app expects the built runtime assets to live.
-    /// The dev script copies runtime/dist/customizer/* here so the GUI is
-    /// decoupled from the repo checkout.
+    /// Where install.sh puts the built runtime assets the agent re-applies from.
     public static var installedAssetsDir: URL {
         supportDir.appendingPathComponent("runtime/customizer", isDirectory: true)
-    }
-
-    /// LaunchAgent plist path for the auto-re-apply watcher.
-    public static var launchAgentPlist: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/LaunchAgents/com.spotifycustomizer.watcher.plist")
     }
 }

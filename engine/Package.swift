@@ -7,7 +7,7 @@ let package = Package(
     products: [
         .library(name: "CustomizerCore", targets: ["CustomizerCore"]),
         .executable(name: "customizer", targets: ["customizer-cli"]),
-        .executable(name: "CustomizerMenuBar", targets: ["CustomizerMenuBar"]),
+        .executable(name: "spotify-customizer-agent", targets: ["CustomizerAgent"]),
     ],
     targets: [
         .target(name: "CustomizerCore"),
@@ -16,7 +16,7 @@ let package = Package(
             dependencies: ["CustomizerCore"]
         ),
         .executableTarget(
-            name: "CustomizerMenuBar",
+            name: "CustomizerAgent",
             dependencies: ["CustomizerCore"]
         ),
         .testTarget(

@@ -7,7 +7,7 @@ import { FRAME_PARTS, LAYOUT } from "../../theme-vars.js";
 import type { CustomizerOption } from "../../types.js";
 import { el, LIKE_BUTTON_SELECTOR, prefersReducedMotion } from "./ui.js";
 
-// The menu-bar app's loopback endpoint that drives the system-wide popup.
+// The background agent's loopback endpoint that drives the system-wide popup.
 const OVERLAY_ENDPOINT = "http://127.0.0.1:47621/overlay";
 
 interface OverlaySettings {
@@ -19,7 +19,7 @@ interface OverlaySettings {
 let overlaySyncTimer = 0;
 
 /**
- * Push toast settings to the menu-bar app (it may not be running; that's fine).
+ * Push toast settings to the background agent (it may not be running; that's fine).
  * Debounced: a settings change runs cleanup ("off") then init ("on") in one tick,
  * and two racing requests could land out of order — only the last state is sent.
  */
@@ -39,7 +39,7 @@ const trackToast: CustomizerOption = {
   id: "plugin-track-toast",
   name: "Now-playing toast",
   description:
-    "A glassy card with the artwork, title and artist slides in whenever the song changes — in Spotify, and over other apps when the menu-bar app is running.",
+    "A glassy card with the artwork, title and artist slides in whenever the song changes — in Spotify, and over your other apps.",
   category: "plugin",
   kind: "js",
   settings: [
@@ -67,7 +67,7 @@ const trackToast: CustomizerOption = {
       const meta = el("div", "sc-toast-meta");
       meta.append(el("span", "sc-toast-kicker", "Now playing"), el("strong", "", np.title), el("span", "", np.artist));
       toast.replaceChildren(art, meta);
-      // Resend each track so a menu-bar app started after Spotify picks the settings up.
+      // Resend each track so an agent started after Spotify picks the settings up.
       syncSystemOverlay(overlay);
       toast.classList.add("sc-toast--show");
       window.clearTimeout(timer);

@@ -9,14 +9,14 @@ import SwiftUI
 ///
 /// Controlled from Spotify's own panel: the "Now-playing toast" option posts its
 /// settings to `OverlaySettingsServer`, and they're kept in UserDefaults so the
-/// popup keeps working when this app restarts before Spotify does.
+/// popup keeps working when the agent restarts before Spotify does.
 @MainActor
-final class NowPlayingOverlay: ObservableObject {
+final class NowPlayingOverlay {
     static let defaultsKey = "nowPlayingOverlayEnabled"
     static let overFullScreenKey = "nowPlayingOverlayOverFullScreen"
     static let secondsKey = "nowPlayingOverlaySeconds"
 
-    @Published private(set) var enabled: Bool {
+    private var enabled: Bool {
         didSet {
             UserDefaults.standard.set(enabled, forKey: Self.defaultsKey)
             enabled ? start() : stop()
@@ -24,7 +24,7 @@ final class NowPlayingOverlay: ObservableObject {
     }
 
     /// Also show over full-screen apps (videos, games, full-screen Docs…).
-    @Published private(set) var showOverFullScreen: Bool {
+    private var showOverFullScreen: Bool {
         didSet {
             UserDefaults.standard.set(showOverFullScreen, forKey: Self.overFullScreenKey)
             panel?.collectionBehavior = Self.spaceBehavior(overFullScreen: showOverFullScreen)
@@ -235,8 +235,8 @@ final class NowPlayingOverlay: ObservableObject {
 
 /// Selector-based observer so delivery can be `.deliverImmediately`. The block API
 /// uses `.coalesce`, and NSApplication suspends distributed notifications while the
-/// app is inactive — which a menu-bar app almost always is — so the toast would
-/// only fire once the menu was opened.
+/// app is inactive — which a background agent always is — so the toast would
+/// never fire.
 private final class PlaybackObserver: NSObject {
     private let onChange: ([AnyHashable: Any]) -> Void
 

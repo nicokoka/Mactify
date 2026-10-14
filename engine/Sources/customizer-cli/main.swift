@@ -6,7 +6,6 @@ import CustomizerCore
 //   customizer status
 //   customizer apply   [--assets <dir>] [--app <Spotify.app>] [--restart]
 //   customizer restore [--app <Spotify.app>]
-//   customizer watch   [--assets <dir>] [--interval <seconds>]
 
 let args = Array(CommandLine.arguments.dropFirst())
 
@@ -39,7 +38,8 @@ func fail(_ message: String) -> Never {
 
 func restartSpotifyIfRequested() {
     guard has("--restart") else { return }
-    _ = try? Shell.runPublic("/usr/bin/pkill", ["-x", "Spotify"])
+    // Only this user's Spotify — other accounts' copies aren't ours to kill.
+    _ = try? Shell.runPublic("/usr/bin/pkill", ["-x", "-U", String(getuid()), "Spotify"])
     Thread.sleep(forTimeInterval: 1.0)
     _ = try? Shell.runPublic("/usr/bin/open", ["-a", "Spotify"])
     print("↻ restarted Spotify")
@@ -68,23 +68,6 @@ do {
         print("✓ restored pristine xpui.spa")
         restartSpotifyIfRequested()
 
-    case "watch":
-        let assets = resolveAssetsDir()
-        let interval = Double(flag("--interval") ?? "10") ?? 10
-        print("watching for Spotify updates every \(Int(interval))s (ctrl-c to stop)…")
-        while true {
-            let s = try? customizer.status()
-            if let s, s.installed, s.patched == false {
-                do {
-                    try customizer.apply(assetsDir: assets)
-                    print("↻ re-applied after update (version \(s.version ?? "?"))")
-                } catch {
-                    FileHelper.printErr("re-apply failed: \(error.localizedDescription)")
-                }
-            }
-            Thread.sleep(forTimeInterval: interval)
-        }
-
     case "-h", "--help", "help":
         print("""
         Spotify Customizer CLI
@@ -92,7 +75,6 @@ do {
           customizer status
           customizer apply   [--assets <dir>] [--app <Spotify.app>] [--restart]
           customizer restore [--app <Spotify.app>] [--restart]
-          customizer watch   [--assets <dir>] [--interval <seconds>]
         """)
 
     default:

@@ -1,7 +1,7 @@
 import Foundation
 
 /// High-level facade tying together locator + backup + patcher. This is what the
-/// CLI and menu-bar app both drive.
+/// CLI and background agent both drive.
 public struct Customizer {
     public let locator: SpotifyLocator
     let backups = BackupStore()
