@@ -43,6 +43,12 @@ let (overlay, reapplier, updater, server) = MainActor.assumeIsolated {
             }
             overlay.apply(settings)
             return .noContent
+        case ("POST", "/overlay/prefetch"):
+            guard let request = try? JSONDecoder().decode(ArtworkPrefetch.self, from: request.body) else {
+                return .badRequest
+            }
+            overlay.prefetch(request)
+            return .noContent
         case ("GET", "/update"):
             return .json(updater.status)
         case ("POST", "/update"):

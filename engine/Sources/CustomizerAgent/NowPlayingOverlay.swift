@@ -8,6 +8,16 @@ struct OverlaySettings: Decodable, Equatable {
     var seconds: Double
 }
 
+/// Current and upcoming songs with their direct cover URLs, pushed from Spotify's
+/// play queue so the popup can download art before each song starts.
+struct ArtworkPrefetch: Decodable {
+    struct Track: Decodable {
+        let id: String
+        let artUrl: String
+    }
+    let tracks: [Track]
+}
+
 /// A system-wide "now playing" toast that floats above every app and Space.
 ///
 /// Spotify posts `com.spotify.client.PlaybackStateChanged` on the distributed
@@ -48,11 +58,19 @@ final class NowPlayingOverlay {
     private var hideTask: Task<Void, Never>?
     private var pending: PendingTrack?
     private var artworkCache: [String: NSImage] = [:]
+    /// Track IDs in the cache, oldest first, so eviction drops the least recent.
+    private var artworkCacheOrder: [String] = []
+    /// Downloads in flight, so a song that starts mid-prefetch reuses its download.
+    private var artworkTasks: [String: Task<NSImage?, Never>] = [:]
+    /// Direct cover URLs from Spotify's queue; skips the oEmbed lookup round trip.
+    private var artworkURLs: [String: URL] = [:]
     private let model = ToastModel()
 
     /// How long to hold the toast back waiting for cover art before showing a placeholder.
     private static let artworkWaitNanoseconds: UInt64 = 1_500_000_000
     private static let artworkCacheLimit = 50
+    private static let maxPrefetchTracks = 6
+    private static let artworkHost = "i.scdn.co"
     private static let spotifyBundleID = "com.spotify.client"
 
     init() {
@@ -70,6 +88,20 @@ final class NowPlayingOverlay {
         if showOverFullScreen != settings.showOverFullScreen { showOverFullScreen = settings.showOverFullScreen }
         let seconds = min(max(settings.seconds, 1), 15)
         if showSeconds != seconds { showSeconds = seconds }
+    }
+
+    /// Start downloading art for the songs Spotify says are current or up next.
+    func prefetch(_ request: ArtworkPrefetch) {
+        guard enabled else { return }
+        for track in request.tracks.prefix(Self.maxPrefetchTracks) {
+            guard track.id.hasPrefix("spotify:"),
+                  let url = URL(string: track.artUrl),
+                  url.scheme == "https", url.host == Self.artworkHost
+            else { continue }
+            artworkURLs[track.id] = url
+            _ = artworkTask(for: track.id)
+        }
+        if artworkURLs.count > Self.artworkCacheLimit { artworkURLs.removeAll() }
     }
 
     private func start() {
@@ -111,9 +143,9 @@ final class NowPlayingOverlay {
         // Hold the toast until the art arrives so it never flashes the gray
         // placeholder; if the network is slow, show it anyway after the wait.
         pending = track
+        let download = artworkTask(for: trackID)
         Task {
-            let artwork = await Self.fetchArtwork(trackID: trackID)
-            if let artwork { cacheArtwork(artwork, for: trackID) }
+            let artwork = await download.value
             guard trackID == lastTrackID else { return }
             if pending?.id == trackID {
                 reveal(track, artwork: artwork)
@@ -136,20 +168,45 @@ final class NowPlayingOverlay {
     }
 
     private func cacheArtwork(_ image: NSImage, for trackID: String) {
-        if artworkCache.count >= Self.artworkCacheLimit { artworkCache.removeAll() }
+        if artworkCache[trackID] == nil { artworkCacheOrder.append(trackID) }
         artworkCache[trackID] = image
+        while artworkCacheOrder.count > Self.artworkCacheLimit {
+            artworkCache.removeValue(forKey: artworkCacheOrder.removeFirst())
+        }
     }
 
-    /// Fetch cover art via oEmbed (`thumbnail_url`). Returns nil on failure (placeholder shows).
-    private static func fetchArtwork(trackID: String) async -> NSImage? {
-        var components = URLComponents(string: "https://open.spotify.com/oembed")
-        components?.queryItems = [URLQueryItem(name: "url", value: trackID)]
-        guard let url = components?.url else { return nil }
+    /// The cached image, the download already in flight, or a new download.
+    private func artworkTask(for trackID: String) -> Task<NSImage?, Never> {
+        if let image = artworkCache[trackID] { return Task { image } }
+        if let task = artworkTasks[trackID] { return task }
+        let directURL = artworkURLs[trackID]
+        let task = Task { [weak self] () -> NSImage? in
+            let image = await Self.fetchArtwork(trackID: trackID, directURL: directURL)
+            self?.artworkTasks[trackID] = nil
+            if let image { self?.cacheArtwork(image, for: trackID) }
+            return image
+        }
+        artworkTasks[trackID] = task
+        return task
+    }
+
+    /// Fetch cover art from the queue's direct URL when known, otherwise look it
+    /// up via oEmbed (`thumbnail_url`). Returns nil on failure (placeholder shows).
+    private static func fetchArtwork(trackID: String, directURL: URL?) async -> NSImage? {
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-            guard let thumb = (json?["thumbnail_url"] as? String).flatMap(URL.init(string:)) else { return nil }
-            let (imageData, _) = try await URLSession.shared.data(from: thumb)
+            let imageURL: URL
+            if let directURL {
+                imageURL = directURL
+            } else {
+                var components = URLComponents(string: "https://open.spotify.com/oembed")
+                components?.queryItems = [URLQueryItem(name: "url", value: trackID)]
+                guard let url = components?.url else { return nil }
+                let (data, _) = try await URLSession.shared.data(from: url)
+                let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+                guard let thumb = (json?["thumbnail_url"] as? String).flatMap(URL.init(string:)) else { return nil }
+                imageURL = thumb
+            }
+            let (imageData, _) = try await URLSession.shared.data(from: imageURL)
             return NSImage(data: imageData)
         } catch {
             NSLog("[SpotifyCustomizer] overlay artwork failed: \(error.localizedDescription)")

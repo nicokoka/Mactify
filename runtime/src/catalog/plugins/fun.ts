@@ -3,12 +3,14 @@
 import { injectStyle } from "../../dom.js";
 import { AGENT_URL } from "../../agent.js";
 import { getNowPlaying, largeArtUrl, onPlayStateChange, onTrackChange } from "../../now-playing.js";
+import { getUpcomingArt, hasPlayerQueue, onQueueUpdate } from "../../player-queue.js";
 import { whenPresent } from "../../spotify-api.js";
 import { FRAME_PARTS, LAYOUT } from "../../theme-vars.js";
 import type { CustomizerOption } from "../../types.js";
 import { el, LIKE_BUTTON_SELECTOR, prefersReducedMotion } from "./ui.js";
 
 const OVERLAY_ENDPOINT = `${AGENT_URL}/overlay`;
+const PREFETCH_ENDPOINT = `${AGENT_URL}/overlay/prefetch`;
 
 interface OverlaySettings {
   enabled: boolean;
@@ -35,6 +37,35 @@ function syncSystemOverlay(settings: OverlaySettings): void {
   }, 150);
 }
 
+/** How many upcoming songs the popup pre-downloads cover art for. */
+const PREFETCH_AHEAD = 3;
+/** Spotify can take well over 10s to boot on slow networks. */
+const QUEUE_WAIT_MS = 120_000;
+let prefetchTimer = 0;
+let lastPrefetchKey = "";
+
+/**
+ * Hand the agent direct cover URLs for the current and upcoming songs so the
+ * popup has the art before the song starts. Debounced: a skip fires both a
+ * track change and a queue update.
+ */
+function prefetchQueueArt(): void {
+  window.clearTimeout(prefetchTimer);
+  prefetchTimer = window.setTimeout(async () => {
+    const tracks = await getUpcomingArt(PREFETCH_AHEAD);
+    const key = tracks.map((t) => t.id).join(",");
+    if (!tracks.length || key === lastPrefetchKey) return;
+    lastPrefetchKey = key;
+    fetch(PREFETCH_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ tracks }),
+    }).catch(() => {
+      lastPrefetchKey = ""; // agent not up yet; retry on the next change
+    });
+  }, 300);
+}
+
 const trackToast: CustomizerOption = {
   id: "plugin-track-toast",
   name: "Now-playing toast",
@@ -56,6 +87,16 @@ const trackToast: CustomizerOption = {
       seconds,
     };
     syncSystemOverlay(overlay);
+    // Pre-download art for upcoming songs only when the popup is used outside Spotify.
+    let disposeQueue = (): void => {};
+    const stopWaitingForQueue = overlay.enabled
+      ? whenPresent(() => {
+          if (!hasPlayerQueue()) return false;
+          disposeQueue = onQueueUpdate(prefetchQueueArt);
+          prefetchQueueArt();
+          return true;
+        }, { timeoutMs: QUEUE_WAIT_MS })
+      : () => {};
     const toast = el("div", "sc-toast");
     toast.setAttribute("role", "status");
     document.body.appendChild(toast);
@@ -69,13 +110,18 @@ const trackToast: CustomizerOption = {
       toast.replaceChildren(art, meta);
       // Resend each track so an agent started after Spotify picks the settings up.
       syncSystemOverlay(overlay);
+      if (overlay.enabled) prefetchQueueArt();
       toast.classList.add("sc-toast--show");
       window.clearTimeout(timer);
       timer = window.setTimeout(() => toast.classList.remove("sc-toast--show"), ms);
     });
     return () => {
       dispose();
+      stopWaitingForQueue();
+      disposeQueue();
       window.clearTimeout(timer);
+      window.clearTimeout(prefetchTimer);
+      lastPrefetchKey = "";
       toast.remove();
       syncSystemOverlay({ ...overlay, enabled: false });
     };
