@@ -7,6 +7,7 @@ import { playbackOptions } from "./playback.js";
 import { customBackground } from "./plugins/backdrop.js";
 import { cleanHome } from "./plugins/declutter.js";
 import { funPlugins } from "./plugins/fun.js";
+import { beautifulLyrics } from "./plugins/lyrics.js";
 import { qolPlugins } from "./plugins/qol.js";
 import { recolorThemes } from "./themes/recolors.js";
 import { signatureThemes } from "./themes/signature.js";
@@ -17,6 +18,7 @@ export const CATALOG: readonly CustomizerOption[] = [
   ...recolorThemes,
   cleanHome,
   customBackground,
+  beautifulLyrics,
   ...qolPlugins,
   ...funPlugins,
   ...appearanceOptions,

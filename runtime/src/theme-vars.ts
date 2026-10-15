@@ -37,6 +37,17 @@ export const LAYOUT = {
   playerBar: `[data-testid="now-playing-bar"]`,
 } as const;
 
+/**
+ * Lyrics view anchors (Spotify 1.3.x). Line state classes are hashed, but the
+ * current line alone carries this unhashed `view-timeline-name`, and the element
+ * holding Spotify's inline `--lyrics-color-*` vars wraps lines + background layer.
+ */
+export const LYRICS = {
+  line: `[data-testid="lyrics-line"]`,
+  colorScope: `[style*="--lyrics-color-background"]`,
+  activeTimeline: "--scroll-to-viewport-button-anim",
+} as const;
+
 /** The three content panels plus the player bar — safe to skin. */
 export const PANELS = [LAYOUT.leftPanel, LAYOUT.mainPanel, LAYOUT.rightPanel, LAYOUT.playerBar].join(", ");
 
