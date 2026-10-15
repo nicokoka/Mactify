@@ -3,7 +3,7 @@
 // via a seeded PRNG) instead of being downloaded.
 
 /** Seeded PRNG (mulberry32) so a scene looks identical on every launch. */
-function rng(seed: number): () => number {
+export function rng(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -14,14 +14,14 @@ function rng(seed: number): () => number {
   };
 }
 
-const W = 1600;
-const H = 1000;
+export const W = 1600;
+export const H = 1000;
 
 export function svgUrl(svg: string): string {
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 
-function svgDoc(body: string, defs = ""): string {
+export function svgDoc(body: string, defs = ""): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax slice"><defs>${defs}</defs>${body}</svg>`;
 }
 

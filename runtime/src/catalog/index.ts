@@ -11,10 +11,12 @@ import { beautifulLyrics } from "./plugins/lyrics.js";
 import { qolPlugins } from "./plugins/qol.js";
 import { recolorThemes } from "./themes/recolors.js";
 import { signatureThemes } from "./themes/signature.js";
+import { worldThemes } from "./themes/worlds.js";
 import type { CustomizerOption } from "../types.js";
 
 export const CATALOG: readonly CustomizerOption[] = [
   ...signatureThemes,
+  ...worldThemes,
   ...recolorThemes,
   cleanHome,
   customBackground,

@@ -1,50 +1,14 @@
 // Signature themes: a palette plus a full "material" — scene backdrop, panel
 // treatment and restyled components (buttons, chips, cards, progress bar).
-//
-// Rules learned the hard way on Spotify 1.3.x:
-//  - Only decorate the OUTER panels (LAYOUT/PANELS). clip-path or backdrop-filter on
-//    the inner scrolling <main> stops Chromium painting the feed once you scroll.
-//  - Spotify paints the frame between panels solid black; scenes need FRAME_PARTS
-//    made transparent so the body backdrop shows through.
-//  - The visible pill of an Encore button is its first <span>.
+// Shared selectors and the hard-won Spotify 1.3.x rules live in parts.ts.
 
-import { FRAME_PARTS, LAYOUT, PANELS } from "../../theme-vars.js";
+import { LAYOUT, PANELS } from "../../theme-vars.js";
 import type { CustomizerOption } from "../../types.js";
 import { cyberCity, svgUrl, synthSunset, terminalRain } from "./art.js";
 import { defineTheme, FONTS } from "./define-theme.js";
-
-const PRIMARY_PILL = `[data-encore-id="buttonPrimary"] > span:first-child`;
-const CHIP_PILL = `button[data-encore-id="chip"] > span:first-child`;
-const CHIP_ON = `button[data-encore-id="chip"][aria-checked="true"] > span:first-child`;
-const CARD = `[data-encore-id="card"]`;
-const BIG_PLAY = `${LAYOUT.playerBar} [data-testid="control-button-playpause"] > span:first-child`;
-const TRACK_FG = `${LAYOUT.playerBar} [data-testid="progress-bar"]`;
-const HEADINGS = `${LAYOUT.mainPanel} h1, ${LAYOUT.mainPanel} h2[data-encore-id="text"], ${LAYOUT.mainPanel} section h2`;
-
-/**
- * Backdrop + transparent frame so it shows between panels. The backdrop goes on
- * <html>, NOT <body>: Spotify gives <html> its own background, so body's background
- * would paint above our z-index:-1 layers (rain, grid, blobs) and hide them.
- */
-function scene(backdrop: string, base: string): string {
-  return `
-html { background: ${backdrop} center bottom / cover no-repeat fixed, ${base} !important; }
-body { background: transparent !important; }
-${FRAME_PARTS} { background: transparent !important; }
-${LAYOUT.leftPanel}, ${LAYOUT.rightPanel} { position: relative; }`;
-}
-
-/**
- * Spotify already uses ::before/::after on some panels with inset 0 — a label that
- * only sets top/left inherits full-panel size and paints over the content. Always
- * reset the whole box first.
- */
-const PSEUDO_RESET = `inset: auto; width: auto; height: auto;`;
-
-/** Disable every theme animation for reduced-motion users. */
-const NO_MOTION = `@media (prefers-reduced-motion: reduce) {
-  body::before, body::after, ${PANELS}, ${HEADINGS}, ${PRIMARY_PILL} { animation: none !important; }
-}`;
+import {
+  BIG_PLAY, CARD, CHIP_ON, CHIP_PILL, HEADINGS, NO_MOTION, PRIMARY_PILL, PSEUDO_RESET, scene, TRACK_FG,
+} from "./parts.js";
 
 // ── Cyberpunk ────────────────────────────────────────────────────────────────
 
